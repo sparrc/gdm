@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -23,7 +22,7 @@ const usage = `Go Dependency Manager (gdm), a lightweight tool for managing Go d
 
 Usage:
 
-    gdm [-f GODEPS_FILE] <command>
+    gdm <command> [-f GODEPS_FILE] [-v]
 
 The commands are:
 
@@ -31,17 +30,22 @@ The commands are:
     save      Saves currently checked-out dependencies from $GOPATH to Godeps file.
 `
 
-var ffile = flag.String("f", "Godeps", "Specify the name/location of Godeps file")
-
 func main() {
 	flag.Usage = usageExit
 	flag.Parse()
-	if *ffile != "" {
-		DepsFile = *ffile
-	}
 	args := flag.Args()
+	var ffile string
+	var verbose bool
 	if len(args) < 1 {
 		usageExit()
+	} else if len(args) > 1 {
+		set := flag.NewFlagSet("", flag.ExitOnError)
+		set.StringVar(&ffile, "f", "Godeps", "Specify the name/location of Godeps file")
+		set.BoolVar(&verbose, "v", false, "Verbose mode")
+		set.Parse(os.Args[2:])
+	}
+	if ffile != "" {
+		DepsFile = ffile
 	}
 
 	wd, err := os.Getwd()
@@ -58,7 +62,7 @@ func main() {
 	case "save", "bootstrap":
 		save(wd, gopath)
 	case "restore", "get", "sync", "checkout":
-		restore(wd, gopath)
+		restore(wd, gopath, verbose)
 	}
 }
 
@@ -111,24 +115,10 @@ func save(wd, gopath string) {
 	w.Flush()
 }
 
-func restore(wd, gopath string) {
+func restore(wd, gopath string, verbose bool) {
 	imports := ImportsFromFile(filepath.Join(wd, DepsFile))
 	for _, i := range imports {
-		checkoutRevision(i, gopath)
-	}
-}
-
-func checkoutRevision(i *Import, gopath string) {
-	fullpath := filepath.Join(gopath, "src", i.ImportPath)
-	cmdString := i.Repo.VCS.TagSyncCmd
-	cmdString = strings.Replace(cmdString, "{tag}", i.Rev, 1)
-	cmd := exec.Command(i.Repo.VCS.Cmd, strings.Split(cmdString, " ")...)
-	cmd.Dir = fullpath
-	fmt.Printf("> Executing [%s %s] in %s\n", i.Repo.VCS.Cmd, cmdString, fullpath)
-	_, err := cmd.Output()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error checking out revision at %s, %s\n",
-			fullpath, err.Error())
-		os.Exit(1)
+		i.Verbose = verbose
+		i.RestoreImport(gopath)
 	}
 }

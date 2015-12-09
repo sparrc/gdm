@@ -28,7 +28,53 @@ type Import struct {
 	// ie, 759e96ebaffb01c3cba0e8b129ef29f56507b323
 	Rev string
 
+	// Controls verbosity of output
+	Verbose bool
+
 	Repo *vcs.RepoRoot
+}
+
+func (i *Import) RestoreImport(gopath string) {
+	vcs.ShowCmd = i.Verbose
+	fullpath := filepath.Join(gopath, "src", i.ImportPath)
+	fmt.Printf("> Restoring %s to %s\n", fullpath, i.Rev)
+
+	// Checkout default branch
+	cmdString := i.Repo.VCS.TagSyncDefault
+	cmd := exec.Command(i.Repo.VCS.Cmd, strings.Split(cmdString, " ")...)
+	cmd.Dir = fullpath
+	if i.Verbose {
+		fmt.Printf("cd %s\n%s %s\n", fullpath, i.Repo.VCS.Cmd, cmdString)
+	}
+	_, err := cmd.Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error checking out revision at %s, %s\n",
+			fullpath, err.Error())
+		os.Exit(1)
+	}
+
+	// Download changes
+	err = i.Repo.VCS.Download(fullpath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error downloading changes to %s, %s\n",
+			fullpath, err.Error())
+		os.Exit(1)
+	}
+
+	// Checkout revision
+	cmdString = i.Repo.VCS.TagSyncCmd
+	cmdString = strings.Replace(cmdString, "{tag}", i.Rev, 1)
+	cmd = exec.Command(i.Repo.VCS.Cmd, strings.Split(cmdString, " ")...)
+	cmd.Dir = fullpath
+	if i.Verbose {
+		fmt.Printf("cd %s\n%s %s\n", fullpath, i.Repo.VCS.Cmd, cmdString)
+	}
+	_, err = cmd.Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error checking out revision at %s, %s\n",
+			fullpath, err.Error())
+		os.Exit(1)
+	}
 }
 
 func ImportsFromFile(filename string) []*Import {
