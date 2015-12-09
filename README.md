@@ -1,4 +1,4 @@
-## Go Dependency Manager (gdm)
+## Go Dependency Manager (gdm) [![Circle CI](https://circleci.com/gh/sparrc/gdm.svg?style=svg)](https://circleci.com/gh/sparrc/gdm)
 
 gdm is a lightweight package manager for Go written in Go. It does not copy
 dependencies in-repo and does not require that people (users and developers)
