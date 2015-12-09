@@ -27,8 +27,8 @@ Usage:
 
 The commands are:
 
-    restore   Check out revisions defined in Godeps file in GOPATH.
-    save      Saves currently checked-out dependencies from GOPATH to Godeps file.
+    restore   Check out revisions defined in Godeps file to $GOPATH.
+    save      Saves currently checked-out dependencies from $GOPATH to Godeps file.
 `
 
 var ffile = flag.String("f", "Godeps", "Specify the name/location of Godeps file")
