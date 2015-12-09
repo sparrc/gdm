@@ -34,7 +34,7 @@ type Import struct {
 func ImportsFromFile(filename string) []*Import {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		//Do something
+		panic(err)
 	}
 	lines := strings.Split(string(content), "\n")
 	imports := []*Import{}
