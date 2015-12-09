@@ -167,7 +167,15 @@ func visit(path string, f os.FileInfo, err error) error {
 
 	for _, i := range p.Imports {
 		if strings.Contains(i, rootImport) {
-			// DO NOTHING
+			continue
+		} else if strings.Contains(i, ".") && strings.Contains(i, "/") {
+			importSet[i] = true
+		}
+	}
+
+	for _, i := range p.TestImports {
+		if strings.Contains(i, rootImport) {
+			continue
 		} else if strings.Contains(i, ".") && strings.Contains(i, "/") {
 			importSet[i] = true
 		}

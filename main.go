@@ -14,13 +14,16 @@ var (
 	// Version can be auto-set at build time using an ldflag
 	//   go build -ldflags "-X main.Version `git describe --tags --always`"
 	Version string
+
+	// DepsFile specifies the Godeps file used by gdm
+	DepsFile string = "Godeps"
 )
 
 const usage = `Go Dependency Manager (gdm), a lightweight tool for managing Go dependencies.
 
 Usage:
 
-    gdm <command>
+    gdm [-f GODEPS_FILE] <command>
 
 The commands are:
 
@@ -28,11 +31,14 @@ The commands are:
     save      Saves currently checked-out dependencies from GOPATH to Godeps file.
 `
 
-const DepsFile string = "Godeps"
+var ffile = flag.String("f", "Godeps", "Specify the name/location of Godeps file")
 
 func main() {
 	flag.Usage = usageExit
 	flag.Parse()
+	if *ffile != "" {
+		DepsFile = *ffile
+	}
 	args := flag.Args()
 	if len(args) < 1 {
 		usageExit()
