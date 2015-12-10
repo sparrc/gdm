@@ -33,6 +33,7 @@ The commands are:
 
     restore   Check out revisions defined in Godeps file to $GOPATH.
     save      Saves currently checked-out dependencies from $GOPATH to Godeps file.
+    brew      Outputs homebrew go_resource entries to stdout.
 `
 
 func main() {
@@ -65,6 +66,8 @@ func main() {
 		save(wd, gopath, verbose)
 	case "restore", "get", "sync", "checkout":
 		restore(wd, gopath, verbose)
+	case "brew", "homebrew":
+		homebrew(wd, gopath, verbose)
 	}
 }
 
@@ -99,6 +102,18 @@ func getGoPath(wd string) string {
 		os.Exit(1)
 	}
 	return gopath
+}
+
+func homebrew(wd, gopath string, verbose bool) {
+	imports := ImportsFromPath(wd, gopath, verbose)
+	fmt.Println()
+	for _, i := range imports {
+		fmt.Printf("  go_resource \"%s\" do\n", i.ImportPath)
+		fmt.Printf("    url \"%s.%s\",\n", i.Repo.Repo, i.Repo.VCS.Cmd)
+		fmt.Printf("    :revision => \"%s\"\n", i.Rev)
+		fmt.Printf("  end\n")
+		fmt.Println()
+	}
 }
 
 func save(wd, gopath string, verbose bool) {

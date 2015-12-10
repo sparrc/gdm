@@ -81,6 +81,27 @@ Building a project managed by gdm looks like this:
 1. Run `gdm restore`
 1. Build: `go install` or `go install ./...`
 
+### Homebrew
+
+To help making a homebrew formula for your go project, gdm supports a
+`gdm brew` command, which will print out your dependencies to stdout in the
+homebrew go_resource format, like this:
+
+```
+$ gdm brew
+======= Go Dependency Manager =======
+= working dir: /Users/csparr/ws/go/src/github.com/sparrc/gdm
+= GOPATH:      /Users/csparr/ws/go
+=====================================
+
+  go_resource "golang.org/x/tools" do
+    url "https://go.googlesource.com/tools.git",
+    :revision => "b48dc8da98ae78c3d11f220e7d327304c84e623a"
+  end
+
+  ...
+```
+
 #### Acknowledgements
 
 If you're familiar with Go dependency management, you can probably see the
