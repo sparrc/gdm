@@ -15,6 +15,7 @@ import (
 	"golang.org/x/tools/go/vcs"
 )
 
+// Import defines an import dependency
 type Import struct {
 	// ie, golang.org/x/tools/go/vcs
 	ImportPath string
@@ -28,6 +29,12 @@ type Import struct {
 	Repo *vcs.RepoRoot
 }
 
+// RestoreImport takes the import and restores it at the given GOPATH.
+// There are four steps to this:
+//   1. cd $GOPATH/src/<import_path>
+//   2. Checkout default branch (ie, git checkout master)
+//   3. Download changes (ie, git pull --ff-only)
+//   4. Checkout revision (ie, git checkout 759e96ebaffb01c3cba0e8b129ef29f56507b323)
 func (i *Import) RestoreImport(gopath string) {
 	vcs.ShowCmd = i.Verbose
 	fullpath := filepath.Join(gopath, "src", i.ImportPath)
@@ -52,6 +59,7 @@ func (i *Import) RestoreImport(gopath string) {
 		fullpath, i.Verbose)
 }
 
+// ImportsFromFile reads the given file and returns Import structs.
 func ImportsFromFile(filename string) []*Import {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -89,6 +97,8 @@ func ImportsFromFile(filename string) []*Import {
 	return imports
 }
 
+// ImportsFromPath looks in the given working directory and finds all 3rd-party
+// imports, and returns Import structs
 func ImportsFromPath(wd, gopath string, verbose bool) []*Import {
 	// Get a set of transitive dependencies (package import paths) for the
 	// specified package.
@@ -111,63 +121,68 @@ func ImportsFromPath(wd, gopath string, verbose bool) []*Import {
 	}
 
 	// Sort the import set into a list of string paths
-	sortedImportSet := []string{}
-	repoRoot := getRootImport(wd)
+	sortedImportPaths := []string{}
+	repoRoot := getImportPath(wd)
 	for path, _ := range deps {
 		// Do not vendor the repo that we are vendoring
 		if path == repoRoot {
 			continue
 		}
-		sortedImportSet = append(sortedImportSet, path)
+		sortedImportPaths = append(sortedImportPaths, path)
 	}
-	sort.Strings(sortedImportSet)
+	sort.Strings(sortedImportPaths)
 
 	// Iterate through imports, creating a list of Import structs
-	imports := []*Import{}
-	for _, path := range sortedImportSet {
-		root, err := getRepoRoot(path)
+	result := []*Import{}
+	for _, importpath := range sortedImportPaths {
+		root, err := getRepoRoot(importpath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting VCS info for %s, skipping\n", path)
+			fmt.Fprintf(os.Stderr, "Error getting VCS info for %s, skipping\n", importpath)
 			continue
 		}
 		_, ok := deps[root.Root]
-		if root.Root == path || !ok {
-			// Use the repo root as path if it's a usable go VCS repo
+		if root.Root == importpath || !ok {
+			// Use the repo root as importpath if it's a usable go VCS repo
 			if _, err := getRepoRoot(root.Root); err == nil {
 				deps[root.Root] = true
-				path = root.Root
+				importpath = root.Root
 			}
 			// If this is the repo root, or root is not already imported
-			fullpath := filepath.Join(gopath, "src", path)
+			fullpath := filepath.Join(gopath, "src", importpath)
 			rev := getRevisionFromPath(fullpath, root)
-			imports = append(imports, &Import{
+			result = append(result, &Import{
 				Rev:        rev,
-				ImportPath: path,
+				ImportPath: importpath,
 				Repo:       root,
 			})
 		}
 	}
-	return imports
+	return result
 }
 
-// getRepoImport takes a path like /home/csparr/go/src/github.com/sparrc/gdm
+// getImportPath takes a path like /home/csparr/go/src/github.com/sparrc/gdm
 // and returns the import path, ie, github.com/sparrc/gdm
-func getRootImport(path string) string {
-	p, err := build.ImportDir(path, 0)
+func getImportPath(fullpath string) string {
+	p, err := build.ImportDir(fullpath, 0)
 	if err != nil {
 		return ""
 	}
 	return p.ImportPath
 }
 
-func getRepoRoot(path string) (*vcs.RepoRoot, error) {
-	repo, err := vcs.RepoRootForImportPath(path, false)
+// getRepoRoot takes an import path like github.com/sparrc/gdm
+// and returns the VCS Repository information for it.
+func getRepoRoot(importpath string) (*vcs.RepoRoot, error) {
+	repo, err := vcs.RepoRootForImportPath(importpath, false)
 	if err != nil {
 		return nil, err
 	}
 	return repo, nil
 }
 
+// getRevisionFromPath takes a path like /home/csparr/go/src/github.com/sparrc/gdm
+// and the VCS Repository information and returns the currently checked out
+// revision, ie, 759e96ebaffb01c3cba0e8b129ef29f56507b323
 func getRevisionFromPath(fullpath string, root *vcs.RepoRoot) string {
 	// Check that we have the executable available
 	_, err := exec.LookPath(root.VCS.Cmd)
@@ -223,6 +238,10 @@ func filterPackages(output []byte, exclude map[string]bool) map[string]bool {
 	return deps
 }
 
+// runInDir runs the given command (name) with args, in the given directory.
+// if verbose, prints out the command and dir it is executing.
+// This function exits the whole program if it fails.
+// Returns output of the command.
 func runInDir(name string, args []string, dir string, verbose bool) []byte {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir

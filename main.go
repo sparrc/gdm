@@ -71,6 +71,9 @@ func usageExit() {
 	os.Exit(0)
 }
 
+// getGoPath returns a single GOPATH. If there are multiple defined in the users
+// $GOPATH env variable, then getGoPath validates that the working directory is
+// part of one of the GOPATHs, and uses the first one it finds that does.
 func getGoPath(wd string) string {
 	gopath := os.Getenv("GOPATH")
 	if gopath == "" {
