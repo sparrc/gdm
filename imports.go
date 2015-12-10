@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"go/build"
 	"io/ioutil"
@@ -11,14 +13,6 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/vcs"
-)
-
-var (
-	// A set of the imports, gets modified by tree walker
-	importSet map[string]bool
-
-	// rootImport is the import path of the root repo, ie, working directory.
-	rootImport string
 )
 
 type Import struct {
@@ -40,21 +34,11 @@ func (i *Import) RestoreImport(gopath string) {
 	fmt.Printf("> Restoring %s to %s\n", fullpath, i.Rev)
 
 	// Checkout default branch
-	cmdString := i.Repo.VCS.TagSyncDefault
-	cmd := exec.Command(i.Repo.VCS.Cmd, strings.Split(cmdString, " ")...)
-	cmd.Dir = fullpath
-	if i.Verbose {
-		fmt.Printf("cd %s\n%s %s\n", fullpath, i.Repo.VCS.Cmd, cmdString)
-	}
-	_, err := cmd.Output()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error checking out revision at %s, %s\n",
-			fullpath, err.Error())
-		os.Exit(1)
-	}
+	runInDir(i.Repo.VCS.Cmd, strings.Fields(i.Repo.VCS.TagSyncDefault),
+		fullpath, i.Verbose)
 
 	// Download changes
-	err = i.Repo.VCS.Download(fullpath)
+	err := i.Repo.VCS.Download(fullpath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error downloading changes to %s, %s\n",
 			fullpath, err.Error())
@@ -62,19 +46,10 @@ func (i *Import) RestoreImport(gopath string) {
 	}
 
 	// Checkout revision
-	cmdString = i.Repo.VCS.TagSyncCmd
+	cmdString := i.Repo.VCS.TagSyncCmd
 	cmdString = strings.Replace(cmdString, "{tag}", i.Rev, 1)
-	cmd = exec.Command(i.Repo.VCS.Cmd, strings.Split(cmdString, " ")...)
-	cmd.Dir = fullpath
-	if i.Verbose {
-		fmt.Printf("cd %s\n%s %s\n", fullpath, i.Repo.VCS.Cmd, cmdString)
-	}
-	_, err = cmd.Output()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error checking out revision at %s, %s\n",
-			fullpath, err.Error())
-		os.Exit(1)
-	}
+	runInDir(i.Repo.VCS.Cmd, strings.Fields(cmdString),
+		fullpath, i.Verbose)
 }
 
 func ImportsFromFile(filename string) []*Import {
@@ -114,14 +89,35 @@ func ImportsFromFile(filename string) []*Import {
 	return imports
 }
 
-func ImportsFromPath(wd, gopath string) []*Import {
-	// Get all imports from root directory
-	setRootImport(wd)
-	filepath.Walk(wd, visit)
+func ImportsFromPath(wd, gopath string, verbose bool) []*Import {
+	// Get a set of transitive dependencies (package import paths) for the
+	// specified package.
+	depsOutput := runInDir("go",
+		[]string{"list", "-f", `{{range .Deps}}{{.}}{{"\n"}}{{end}}`, "./..."},
+		wd, verbose)
+	// filter out standard library
+	deps := filterPackages(depsOutput, nil)
+
+	// List dependencies of test files, which are not included in the go list .Deps
+	// Also, ignore any dependencies that are already covered.
+	testDepsOutput := runInDir("go",
+		[]string{"list", "-f",
+			`{{join .TestImports "\n"}}{{"\n"}}{{join .XTestImports "\n"}}`, "./..."},
+		wd, verbose)
+	// filter out stdlib and existing deps
+	testDeps := filterPackages(testDepsOutput, deps)
+	for dep := range testDeps {
+		deps[dep] = true
+	}
 
 	// Sort the import set into a list of string paths
 	sortedImportSet := []string{}
-	for path, _ := range importSet {
+	repoRoot := getRootImport(wd)
+	for path, _ := range deps {
+		// Do not vendor the repo that we are vendoring
+		if path == repoRoot {
+			continue
+		}
 		sortedImportSet = append(sortedImportSet, path)
 	}
 	sort.Strings(sortedImportSet)
@@ -134,11 +130,11 @@ func ImportsFromPath(wd, gopath string) []*Import {
 			fmt.Fprintf(os.Stderr, "Error getting VCS info for %s, skipping\n", path)
 			continue
 		}
-		_, ok := importSet[root.Root]
+		_, ok := deps[root.Root]
 		if root.Root == path || !ok {
 			// Use the repo root as path if it's a usable go VCS repo
 			if _, err := getRepoRoot(root.Root); err == nil {
-				importSet[root.Root] = true
+				deps[root.Root] = true
 				path = root.Root
 			}
 			// If this is the repo root, or root is not already imported
@@ -154,12 +150,14 @@ func ImportsFromPath(wd, gopath string) []*Import {
 	return imports
 }
 
-func setRootImport(path string) {
+// getRepoImport takes a path like /home/csparr/go/src/github.com/sparrc/gdm
+// and returns the import path, ie, github.com/sparrc/gdm
+func getRootImport(path string) string {
 	p, err := build.ImportDir(path, 0)
 	if err != nil {
-		return
+		return ""
 	}
-	rootImport = p.ImportPath
+	return p.ImportPath
 }
 
 func getRepoRoot(path string) (*vcs.RepoRoot, error) {
@@ -202,33 +200,40 @@ func getRevisionFromPath(fullpath string, root *vcs.RepoRoot) string {
 	return strings.TrimSpace(string(output))
 }
 
-func visit(path string, f os.FileInfo, err error) error {
-	if !f.IsDir() {
-		return nil
-	}
-	p, err := build.ImportDir(path, 0)
-	if err != nil {
-		return nil
-	}
-
-	for _, i := range p.Imports {
-		if strings.Contains(i, rootImport) {
+// filterPackages accepts the output of a go list comment (one package per line)
+// and returns a set of package import paths, excluding standard library.
+// Additionally, any packages present in the "exclude" set will be excluded.
+func filterPackages(output []byte, exclude map[string]bool) map[string]bool {
+	var scanner = bufio.NewScanner(bytes.NewReader(output))
+	var deps = map[string]bool{}
+	for scanner.Scan() {
+		var (
+			pkg    = scanner.Text()
+			slash  = strings.Index(pkg, "/")
+			stdLib = slash == -1 || strings.Index(pkg[:slash], ".") == -1
+		)
+		if stdLib {
 			continue
-		} else if strings.Contains(i, ".") && strings.Contains(i, "/") {
-			importSet[i] = true
 		}
-	}
-
-	for _, i := range p.TestImports {
-		if strings.Contains(i, rootImport) {
+		if _, ok := exclude[pkg]; ok {
 			continue
-		} else if strings.Contains(i, ".") && strings.Contains(i, "/") {
-			importSet[i] = true
 		}
+		deps[pkg] = true
 	}
-	return nil
+	return deps
 }
 
-func init() {
-	importSet = make(map[string]bool)
+func runInDir(name string, args []string, dir string, verbose bool) []byte {
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	if verbose {
+		fmt.Printf("cd %s\n%s %s\n", dir, name, strings.Join(args, " "))
+	}
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error running %s %s in dir %s, %s\n",
+			name, strings.Join(args, " "), dir, err.Error())
+		os.Exit(1)
+	}
+	return output
 }

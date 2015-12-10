@@ -60,7 +60,7 @@ func main() {
 
 	switch args[0] {
 	case "save", "bootstrap":
-		save(wd, gopath)
+		save(wd, gopath, verbose)
 	case "restore", "get", "sync", "checkout":
 		restore(wd, gopath, verbose)
 	}
@@ -96,8 +96,8 @@ func getGoPath(wd string) string {
 	return gopath
 }
 
-func save(wd, gopath string) {
-	imports := ImportsFromPath(wd, gopath)
+func save(wd, gopath string, verbose bool) {
+	imports := ImportsFromPath(wd, gopath, verbose)
 
 	f, err := os.Create(filepath.Join(wd, DepsFile))
 	if err != nil {

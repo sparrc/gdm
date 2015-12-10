@@ -13,7 +13,7 @@ func TestSetRootImport(t *testing.T) {
 	}
 
 	s := "github.com/sparrc/gdm"
-	setRootImport(wd)
+	rootImport := getRootImport(wd)
 	if rootImport != s {
 		t.Errorf("Expected rootImport %s, got %s", s, rootImport)
 	}
