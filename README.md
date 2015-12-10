@@ -16,34 +16,32 @@ $ go get github.com/sparrc/gdm
 
 ### How to use gdm with a new project
 
-Assuming you've got everything working already, so you can build your project
+Assuming your Go workspace is setup, so you can build your project
 with `go install` or `go install ./...`, it's one command to start using:
 
-```console
-$ gdm save
+```
+src/github.com/sparrc/gdm $ gdm save
 ```
 
 This will create a new file in your repo directory called `Godeps`, which
 specifies project dependencies and their revisions. This file is identical to
 the file used by [gpm](https://github.com/pote/gpm).
 
-`Godeps` is a simple text file of repo roots and revisions,
-also supporting comments:
+Godeps is a simple text file of repo roots and revisions:
 
 ```
-  # collectd things:
   collectd.org/api 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
   collectd.org/network 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
-
-  # toml parser:
   github.com/BurntSushi/toml 056c9bc7be7190eaa7715723883caffa5f8fa3e4
   ...
 ```
 
+The file supports comments using the `#` character.
+
 ### Restore
 
-The `gdm restore` command is the opposite of `gdm save`. It will install the
-package versions specified in `Godeps` to your `$GOPATH`. This modifies the
+The `gdm restore` command is the opposite of `gdm save`. It will checkout the
+package versions specified in Godeps to your `$GOPATH`. This modifies the
 state of packages in your `$GOPATH`.
 
 ### Add a Dependency
@@ -76,27 +74,37 @@ To update all dependencies from your `$GOPATH`, do this:
 
 Building a project managed by gdm looks like this:
 
-1. Run `go get github.com/foo/bar`
+1. Run `go get github.com/foo/bar/...`
 1. Run `cd $GOPATH/src/github.com/foo/bar`
 1. Run `gdm restore`
 1. Build: `go install` or `go install ./...`
 
 ### Homebrew
 
-To help making a homebrew formula for your go project, gdm supports a
-`gdm brew` command, which will print out your dependencies to stdout in the
-homebrew go_resource format, like this:
+To help make a [homebrew](https://github.com/Homebrew/homebrew)
+formula for your Go project, gdm supports a `gdm brew` command, which will print
+out your dependencies to stdout in the homebrew go_resource format, like this:
 
-```
-$ gdm brew
+```console
+$ gdm brew # in directory $GOPATH/src/github.com/influxdb/influxdb
 ======= Go Dependency Manager =======
-= working dir: /Users/csparr/ws/go/src/github.com/sparrc/gdm
+= working dir: /Users/csparr/ws/go/src/github.com/influxdb/influxdb
 = GOPATH:      /Users/csparr/ws/go
 =====================================
 
-  go_resource "golang.org/x/tools" do
-    url "https://go.googlesource.com/tools.git",
-    :revision => "b48dc8da98ae78c3d11f220e7d327304c84e623a"
+  go_resource "collectd.org/api" do
+    url "https://github.com/collectd/go-collectd.git",
+    :revision => "9fc824c70f713ea0f058a07b49a4c563ef2a3b98"
+  end
+
+  go_resource "collectd.org/network" do
+    url "https://github.com/collectd/go-collectd.git",
+    :revision => "9fc824c70f713ea0f058a07b49a4c563ef2a3b98"
+  end
+
+  go_resource "github.com/BurntSushi/toml" do
+    url "https://github.com/BurntSushi/toml.git",
+    :revision => "056c9bc7be7190eaa7715723883caffa5f8fa3e4"
   end
 
   ...
