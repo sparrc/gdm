@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 var (
@@ -16,6 +17,10 @@ var (
 
 	// DepsFile specifies the Godeps file used by gdm
 	DepsFile string = "Godeps"
+
+	// Parallel specifies whether to 'restore' in parallel
+	// This is primarily for debug/logging purposes
+	Parallel bool = true
 )
 
 const usage = `Go Dependency Manager (gdm), a lightweight tool for managing Go dependencies.
@@ -34,18 +39,15 @@ func main() {
 	flag.Usage = usageExit
 	flag.Parse()
 	args := flag.Args()
-	var ffile string
 	var verbose bool
 	if len(args) < 1 {
 		usageExit()
 	} else if len(args) > 1 {
 		set := flag.NewFlagSet("", flag.ExitOnError)
-		set.StringVar(&ffile, "f", "Godeps", "Specify the name/location of Godeps file")
+		set.StringVar(&DepsFile, "f", "Godeps", "Specify the name/location of Godeps file")
 		set.BoolVar(&verbose, "v", false, "Verbose mode")
+		set.BoolVar(&Parallel, "parallel", true, "Execute gdm restore in parallel")
 		set.Parse(os.Args[2:])
-	}
-	if ffile != "" {
-		DepsFile = ffile
 	}
 
 	wd, err := os.Getwd()
@@ -120,6 +122,27 @@ func save(wd, gopath string, verbose bool) {
 
 func restore(wd, gopath string, verbose bool) {
 	imports := ImportsFromFile(filepath.Join(wd, DepsFile))
+	if Parallel {
+		restoreParallel(imports, gopath, verbose)
+	} else {
+		restoreSerial(imports, gopath, verbose)
+	}
+}
+
+func restoreParallel(imports []*Import, gopath string, verbose bool) {
+	var wg sync.WaitGroup
+	for _, i := range imports {
+		i.Verbose = verbose
+		wg.Add(1)
+		go func(I *Import) {
+			defer wg.Done()
+			I.RestoreImport(gopath)
+		}(i)
+	}
+	wg.Wait()
+}
+
+func restoreSerial(imports []*Import, gopath string, verbose bool) {
 	for _, i := range imports {
 		i.Verbose = verbose
 		i.RestoreImport(gopath)

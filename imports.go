@@ -26,6 +26,7 @@ type Import struct {
 	// Controls verbosity of output
 	Verbose bool
 
+	// see https://godoc.org/golang.org/x/tools/go/vcs#RepoRoot
 	Repo *vcs.RepoRoot
 }
 
