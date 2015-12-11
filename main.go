@@ -34,6 +34,7 @@ The commands are:
     restore   Check out revisions defined in Godeps file to $GOPATH.
     save      Saves currently checked-out dependencies from $GOPATH to Godeps file.
     brew      Outputs homebrew go_resource entries to stdout.
+    version   Prints the version.
 `
 
 func main() {
@@ -55,20 +56,30 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("======= Go Dependency Manager =======")
-	fmt.Println("= working dir:", wd)
 	gopath := getGoPath(wd)
-	fmt.Println("= GOPATH:     ", gopath)
-	fmt.Println("=====================================")
 
 	switch args[0] {
 	case "save", "bootstrap":
+		splash(wd, gopath)
 		save(wd, gopath, verbose)
 	case "restore", "get", "sync", "checkout":
+		splash(wd, gopath)
 		restore(wd, gopath, verbose)
 	case "brew", "homebrew":
+		splash(wd, gopath)
 		homebrew(wd, gopath, verbose)
+	case "version":
+		fmt.Printf("gdm - version %s\n", Version)
+	default:
+		usageExit()
 	}
+}
+
+func splash(wd, gopath string) {
+	fmt.Println("======= Go Dependency Manager =======")
+	fmt.Println("= working dir:", wd)
+	fmt.Println("= GOPATH:     ", gopath)
+	fmt.Println("=====================================")
 }
 
 func usageExit() {
