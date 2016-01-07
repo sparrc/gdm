@@ -41,12 +41,27 @@ func (i *Import) RestoreImport(gopath string) {
 	fullpath := filepath.Join(gopath, "src", i.ImportPath)
 	fmt.Printf("> Restoring %s to %s\n", fullpath, i.Rev)
 
+	// If the repo doesn't exist already, create it
+	_, err := os.Stat(fullpath)
+	if err != nil && os.IsNotExist(err) {
+		if i.Verbose {
+			fmt.Printf("> Repo %s not found, creating at rev %s\n", fullpath, i.Rev)
+		}
+		err = i.Repo.VCS.CreateAtRev(fullpath, i.Repo.Repo, i.Rev)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating repo at %s, %s\n",
+				fullpath, err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+
 	// Checkout default branch
 	runInDir(i.Repo.VCS.Cmd, strings.Fields(i.Repo.VCS.TagSyncDefault),
 		fullpath, i.Verbose)
 
 	// Download changes
-	err := i.Repo.VCS.Download(fullpath)
+	err = i.Repo.VCS.Download(fullpath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error downloading changes to %s, %s\n",
 			fullpath, err.Error())
