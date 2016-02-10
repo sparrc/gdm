@@ -56,7 +56,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	gopath := getGoPath(wd)
+	gopath, err := getGoPath(wd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
+		os.Exit(1)
+	}
 
 	switch args[0] {
 	case "save", "bootstrap":
@@ -90,18 +94,17 @@ func usageExit() {
 // getGoPath returns a single GOPATH. If there are multiple defined in the users
 // $GOPATH env variable, then getGoPath validates that the working directory is
 // part of one of the GOPATHs, and uses the first one it finds that does.
-func getGoPath(wd string) string {
+func getGoPath(wd string) (string, error) {
 	gopath := os.Getenv("GOPATH")
 	if gopath == "" {
-		fmt.Fprintf(os.Stderr, "GOPATH must be set to use gdm")
-		os.Exit(1)
+		return "", fmt.Errorf("GOPATH must be set to use gdm")
 	}
 
 	// Split out multiple GOPATHs if necessary
 	if strings.Contains(gopath, ":") {
 		paths := strings.Split(gopath, ":")
 		for _, path := range paths {
-			if strings.Contains(path, wd) {
+			if strings.Contains(wd, path) {
 				gopath = path
 				break
 			}
@@ -109,10 +112,10 @@ func getGoPath(wd string) string {
 	}
 
 	if !strings.Contains(wd, gopath) {
-		fmt.Fprintf(os.Stderr, "gdm can only be executed within a directory in the GOPATH")
-		os.Exit(1)
+		return "", fmt.Errorf("gdm can only be executed within a directory in"+
+			" the GOPATH, wd: %s, gopath: %s", wd, gopath)
 	}
-	return gopath
+	return gopath, nil
 }
 
 func homebrew(wd, gopath string, verbose bool) {
