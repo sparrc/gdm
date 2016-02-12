@@ -35,7 +35,7 @@ func TestImportsFromFile(t *testing.T) {
 
 	filename := filepath.Join(wd, "test", "TestGodeps")
 	imports := ImportsFromFile(filename)
-	if len(imports) != 20 {
+	if len(imports) != 19 {
 		t.Errorf("Expected %d imports, got %d", 20, len(imports))
 	}
 
@@ -44,7 +44,9 @@ func TestImportsFromFile(t *testing.T) {
 		rev        string
 	}{
 		{"collectd.org/api", "9fc824c70f713ea0f058a07b49a4c563ef2a3b98"},
-		{"collectd.org/network", "9fc824c70f713ea0f058a07b49a4c563ef2a3b98"},
+		// This import is in file but has the same "repo root" as collectd.org/api
+		// so it shouldn't show up in the 'restore' import paths
+		// {"collectd.org/network", "9fc824c70f713ea0f058a07b49a4c563ef2a3b98"},
 		{"github.com/BurntSushi/toml", "056c9bc7be7190eaa7715723883caffa5f8fa3e4"},
 		{"github.com/bmizerany/pat", "b8a35001b773c267eb260a691f4e5499a3531600"},
 		{"github.com/boltdb/bolt", "b34b35ea8d06bb9ae69d9a349119252e4c1d8ee0"},
