@@ -47,7 +47,8 @@ func (i *Import) RestoreImport(gopath string) {
 		if i.Verbose {
 			fmt.Printf("> Repo %s not found, creating at rev %s\n", fullpath, i.Rev)
 		}
-		err = i.Repo.VCS.CreateAtRev(fullpath, i.Repo.Repo, i.Rev)
+		rootpath := filepath.Join(gopath, "src", i.Repo.Root)
+		err = i.Repo.VCS.CreateAtRev(rootpath, i.Repo.Repo, i.Rev)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating repo at %s, %s\n",
 				fullpath, err.Error())
@@ -83,6 +84,7 @@ func ImportsFromFile(filename string) []*Import {
 	}
 	lines := strings.Split(string(content), "\n")
 	imports := []*Import{}
+	roots := make(map[string]bool)
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") || len(line) == 0 {
@@ -104,11 +106,14 @@ func ImportsFromFile(filename string) []*Import {
 			fmt.Fprintf(os.Stderr, "Error getting VCS info for %s\n", path)
 			os.Exit(1)
 		}
-		imports = append(imports, &Import{
-			Rev:        rev,
-			ImportPath: path,
-			Repo:       root,
-		})
+		if _, ok := roots[root.Root]; !ok {
+			roots[root.Root] = true
+			imports = append(imports, &Import{
+				Rev:        rev,
+				ImportPath: path,
+				Repo:       root,
+			})
+		}
 	}
 	return imports
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -167,6 +168,8 @@ func restoreParallel(imports []*Import, gopath string, verbose bool) {
 			defer wg.Done()
 			I.RestoreImport(gopath)
 		}(i)
+		// arbitrary sleep to avoid overloading a single clone endpoint
+		time.Sleep(time.Millisecond * 100)
 	}
 	wg.Wait()
 }
