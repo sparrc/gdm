@@ -164,8 +164,6 @@ func restoreParallel(imports []*Import, gopath string, verbose bool) {
 	for _, i := range imports {
 		i.Verbose = verbose
 		wg.Add(1)
-		// arbitrary jitter to avoid overloading a single endpoint
-		time.Sleep(time.Millisecond * 150)
 		go func(I *Import) {
 			defer wg.Done()
 			I.RestoreImport(gopath)
