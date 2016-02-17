@@ -20,7 +20,7 @@ Assuming your Go workspace is setup, so you can build your project
 with `go install` or `go install ./...`, it's one command to start using:
 
 ```
-src/github.com/sparrc/gdm $ gdm save
+gdm save
 ```
 
 This will create a new file in your repo directory called `Godeps`, which
@@ -74,7 +74,7 @@ To update all dependencies from your `$GOPATH`, do this:
 
 Building a project managed by gdm looks like this:
 
-1. Run `go get github.com/foo/bar/...`
+1. Run `go get github.com/foo/bar`
 1. Run `cd $GOPATH/src/github.com/foo/bar`
 1. Run `gdm restore`
 1. Build: `go install` or `go install ./...`
