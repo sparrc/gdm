@@ -1,17 +1,17 @@
 ## Go Dependency Manager (gdm) [![Circle CI](https://circleci.com/gh/sparrc/gdm.svg?style=svg)](https://circleci.com/gh/sparrc/gdm)
 
-gdm is a lightweight package manager for Go written in Go. It does not copy
-dependencies in-repo and does not require that people (users and developers)
-use `gdm` to build your project. In this way, people can still simply `go get`
-your project and build it.
+gdm aims to do as little as possible. It does not copy
+dependencies in-repo and does not require that people use `gdm` to build
+your project. In this way, people can still simply `go get`
+your project and build.
 
 This tool assumes you are working in a standard Go workspace, as described in
 http://golang.org/doc/code.html.
 
 ### Install
 
-```console
-$ go get github.com/sparrc/gdm
+```
+go get github.com/sparrc/gdm
 ```
 
 ### How to use gdm with a new project
@@ -30,10 +30,10 @@ the file used by [gpm](https://github.com/pote/gpm).
 Godeps is a simple text file of repo roots and revisions:
 
 ```
-  collectd.org/api 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
-  collectd.org/network 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
-  github.com/BurntSushi/toml 056c9bc7be7190eaa7715723883caffa5f8fa3e4
-  ...
+collectd.org/api 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
+collectd.org/network 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
+github.com/BurntSushi/toml 056c9bc7be7190eaa7715723883caffa5f8fa3e4
+...
 ```
 
 The file supports comments using the `#` character.
@@ -86,7 +86,7 @@ formula for your Go project, gdm supports a `gdm brew` command, which will print
 out your dependencies to stdout in the homebrew go_resource format, like this:
 
 ```console
-$ gdm brew # in directory $GOPATH/src/github.com/influxdb/influxdb
+$ gdm brew
 ======= Go Dependency Manager =======
 = working dir: /Users/csparr/ws/go/src/github.com/influxdb/influxdb
 = GOPATH:      /Users/csparr/ws/go
