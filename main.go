@@ -120,7 +120,12 @@ func getGoPath(wd string) (string, error) {
 }
 
 func homebrew(wd, gopath string, verbose bool) {
-	imports := ImportsFromPath(wd, gopath, verbose)
+	imports, err := ImportsFromPath(wd, gopath, verbose)
+	if err != nil {
+		fmt.Printf("Fatal error: %s", err)
+		os.Exit(1)
+	}
+
 	fmt.Println()
 	for _, i := range imports {
 		fmt.Printf("  go_resource \"%s\" do\n", i.ImportPath)
@@ -132,11 +137,16 @@ func homebrew(wd, gopath string, verbose bool) {
 }
 
 func save(wd, gopath string, verbose bool) {
-	imports := ImportsFromPath(wd, gopath, verbose)
+	imports, err := ImportsFromPath(wd, gopath, verbose)
+	if err != nil {
+		fmt.Printf("Fatal error: %s", err)
+		os.Exit(1)
+	}
 
 	f, err := os.Create(filepath.Join(wd, DepsFile))
 	if err != nil {
-		panic(err)
+		fmt.Printf("Fatal error: %s", err)
+		os.Exit(1)
 	}
 	defer f.Close()
 	w := bufio.NewWriter(f)
@@ -144,7 +154,8 @@ func save(wd, gopath string, verbose bool) {
 		fmt.Printf("> Saving Import [%s] Revision [%s]\n", i.ImportPath, i.Rev)
 		_, err = w.WriteString(fmt.Sprintf("%s %s\n", i.ImportPath, i.Rev))
 		if err != nil {
-			panic(err)
+			fmt.Printf("Fatal error: %s", err)
+			os.Exit(1)
 		}
 	}
 	w.Flush()
@@ -161,17 +172,30 @@ func restore(wd, gopath string, verbose bool) {
 
 func restoreParallel(imports []*Import, gopath string, verbose bool) {
 	var wg sync.WaitGroup
+	wg.Add(len(imports))
+	errC := make(chan error, len(imports))
 	for _, i := range imports {
 		i.Verbose = verbose
-		wg.Add(1)
 		go func(I *Import) {
 			defer wg.Done()
-			I.RestoreImport(gopath)
+			err := I.RestoreImport(gopath)
+			if err != nil {
+				errC <- err
+			}
 		}(i)
 		// arbitrary sleep to avoid overloading a single clone endpoint
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * 70)
 	}
 	wg.Wait()
+	close(errC)
+	if len(errC) > 0 {
+		fmt.Println()
+		fmt.Println("ERROR restoring some imports:")
+		for err := range errC {
+			fmt.Printf("-   %s", err)
+		}
+		os.Exit(1)
+	}
 }
 
 func restoreSerial(imports []*Import, gopath string, verbose bool) {

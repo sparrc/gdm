@@ -36,7 +36,7 @@ type Import struct {
 //   2. Checkout default branch (ie, git checkout master)
 //   3. Download changes (ie, git pull --ff-only)
 //   4. Checkout revision (ie, git checkout 759e96ebaffb01c3cba0e8b129ef29f56507b323)
-func (i *Import) RestoreImport(gopath string) {
+func (i *Import) RestoreImport(gopath string) error {
 	vcs.ShowCmd = i.Verbose
 	fullpath := filepath.Join(gopath, "src", i.ImportPath)
 	fmt.Printf("> Restoring %s to %s\n", fullpath, i.Rev)
@@ -50,30 +50,36 @@ func (i *Import) RestoreImport(gopath string) {
 		rootpath := filepath.Join(gopath, "src", i.Repo.Root)
 		err = i.Repo.VCS.CreateAtRev(rootpath, i.Repo.Repo, i.Rev)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating repo at %s, %s\n",
+			return fmt.Errorf("Error creating repo at %s, %s\n",
 				fullpath, err.Error())
-			os.Exit(1)
 		}
-		return
+		return nil
 	}
 
 	// Checkout default branch
-	runInDir(i.Repo.VCS.Cmd, strings.Fields(i.Repo.VCS.TagSyncDefault),
+	_, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(i.Repo.VCS.TagSyncDefault),
 		fullpath, i.Verbose)
+	if err != nil {
+		return err
+	}
 
 	// Download changes
 	err = i.Repo.VCS.Download(fullpath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error downloading changes to %s, %s\n",
+		return fmt.Errorf("Error downloading changes to %s, %s\n",
 			fullpath, err.Error())
-		os.Exit(1)
 	}
 
 	// Checkout revision
 	cmdString := i.Repo.VCS.TagSyncCmd
 	cmdString = strings.Replace(cmdString, "{tag}", i.Rev, 1)
-	runInDir(i.Repo.VCS.Cmd, strings.Fields(cmdString),
+	_, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(cmdString),
 		fullpath, i.Verbose)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ImportsFromFile reads the given file and returns Import structs.
@@ -120,21 +126,27 @@ func ImportsFromFile(filename string) []*Import {
 
 // ImportsFromPath looks in the given working directory and finds all 3rd-party
 // imports, and returns Import structs
-func ImportsFromPath(wd, gopath string, verbose bool) []*Import {
+func ImportsFromPath(wd, gopath string, verbose bool) ([]*Import, error) {
 	// Get a set of transitive dependencies (package import paths) for the
 	// specified package.
-	depsOutput := runInDir("go",
+	depsOutput, err := runInDir("go",
 		[]string{"list", "-f", `{{range .Deps}}{{.}}{{"\n"}}{{end}}`, "./..."},
 		wd, verbose)
+	if err != nil {
+		return nil, err
+	}
 	// filter out standard library
 	deps := filterPackages(depsOutput, nil)
 
 	// List dependencies of test files, which are not included in the go list .Deps
 	// Also, ignore any dependencies that are already covered.
-	testDepsOutput := runInDir("go",
+	testDepsOutput, err := runInDir("go",
 		[]string{"list", "-f",
 			`{{join .TestImports "\n"}}{{"\n"}}{{join .XTestImports "\n"}}`, "./..."},
 		wd, verbose)
+	if err != nil {
+		return nil, err
+	}
 	// filter out stdlib and existing deps
 	testDeps := filterPackages(testDepsOutput, deps)
 	for dep := range testDeps {
@@ -178,7 +190,7 @@ func ImportsFromPath(wd, gopath string, verbose bool) []*Import {
 			})
 		}
 	}
-	return result
+	return result, nil
 }
 
 // getImportPath takes a path like /home/csparr/go/src/github.com/sparrc/gdm
@@ -263,7 +275,7 @@ func filterPackages(output []byte, exclude map[string]bool) map[string]bool {
 // if verbose, prints out the command and dir it is executing.
 // This function exits the whole program if it fails.
 // Returns output of the command.
-func runInDir(name string, args []string, dir string, verbose bool) []byte {
+func runInDir(name string, args []string, dir string, verbose bool) ([]byte, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	if verbose {
@@ -271,9 +283,9 @@ func runInDir(name string, args []string, dir string, verbose bool) []byte {
 	}
 	output, err := cmd.Output()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error running %s %s in dir %s, %s\n",
+		fmt.Errorf("Error running %s %s in dir %s, %s\n",
 			name, strings.Join(args, " "), dir, err.Error())
-		os.Exit(1)
+		return output, err
 	}
-	return output
+	return output, nil
 }
