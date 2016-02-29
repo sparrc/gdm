@@ -102,8 +102,8 @@ func getGoPath(wd string) (string, error) {
 	}
 
 	// Split out multiple GOPATHs if necessary
-	if strings.Contains(gopath, ":") {
-		paths := strings.Split(gopath, ":")
+	if strings.Contains(gopath, string(os.PathListSeparator)) {
+		paths := strings.Split(gopath, string(os.PathListSeparator))
 		for _, path := range paths {
 			if strings.Contains(wd, path) {
 				gopath = path
