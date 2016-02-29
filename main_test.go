@@ -40,7 +40,7 @@ func TestGetGoPath(t *testing.T) {
 	}
 
 	// Set gopath to GOPATH + tmp directory and verify that getGoPath succeeds
-	err = os.Setenv("GOPATH", origGopath+":"+tmpdir)
+	err = os.Setenv("GOPATH", origGopath+string(os.PathListSeparator)+tmpdir)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
