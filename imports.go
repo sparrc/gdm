@@ -63,23 +63,22 @@ func (i *Import) RestoreImport(gopath string) error {
 		return err
 	}
 
-	// Download changes
+	// Attempt to checkout revision.
+	cmdString := i.Repo.VCS.TagSyncCmd
+	cmdString = strings.Replace(cmdString, "{tag}", i.Rev, 1)
+	if _, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(cmdString), fullpath, i.Verbose); err == nil {
+		return nil
+	}
+
+	// There was an error checking out revision: download changes and
+	// re-checkout revision
 	err = i.Repo.VCS.Download(fullpath)
 	if err != nil {
 		return fmt.Errorf("Error downloading changes to %s, %s\n",
 			fullpath, err.Error())
 	}
-
-	// Checkout revision
-	cmdString := i.Repo.VCS.TagSyncCmd
-	cmdString = strings.Replace(cmdString, "{tag}", i.Rev, 1)
-	_, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(cmdString),
-		fullpath, i.Verbose)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(cmdString), fullpath, i.Verbose)
+	return err
 }
 
 // ImportsFromFile reads the given file and returns Import structs.
