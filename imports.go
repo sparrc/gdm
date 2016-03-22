@@ -129,7 +129,7 @@ func ImportsFromPath(wd, gopath string, verbose bool) ([]*Import, error) {
 	// Get a set of transitive dependencies (package import paths) for the
 	// specified package.
 	depsOutput, err := runInDir("go",
-		[]string{"list", "-f", `{{range .Deps}}{{.}}{{"\n"}}{{end}}`, "./..."},
+		[]string{"list", "-f", `{{join .Deps "\n"}}`, "./..."},
 		wd, verbose)
 	if err != nil {
 		return nil, err
