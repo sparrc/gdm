@@ -184,7 +184,7 @@ func restoreParallel(imports []*Import, gopath string, verbose bool) {
 			}
 		}(i)
 		// arbitrary sleep to avoid overloading a single clone endpoint
-		time.Sleep(time.Millisecond * 70)
+		time.Sleep(time.Millisecond * 30)
 	}
 	wg.Wait()
 	close(errC)
