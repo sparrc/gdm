@@ -47,20 +47,19 @@ func (i *Import) RestoreImport(gopath string) error {
 		if i.Verbose {
 			fmt.Printf("> Repo %s not found, creating at rev %s\n", fullpath, i.Rev)
 		}
+
+		// Create parent directory
 		rootpath := filepath.Join(gopath, "src", i.Repo.Root)
-		err = i.Repo.VCS.CreateAtRev(rootpath, i.Repo.Repo, i.Rev)
-		if err != nil {
-			return fmt.Errorf("Error creating repo at %s, %s\n",
+		if err = os.MkdirAll(rootpath, os.ModePerm); err != nil {
+			return fmt.Errorf("Could not create parent directory %s for repo %s\n",
+				rootpath, fullpath)
+		}
+
+		// Clone repo
+		if err = i.Repo.VCS.Create(rootpath, i.Repo.Repo); err != nil {
+			return fmt.Errorf("Error cloning repo at %s, %s\n",
 				fullpath, err.Error())
 		}
-		return nil
-	}
-
-	// Checkout default branch
-	_, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(i.Repo.VCS.TagSyncDefault),
-		fullpath, i.Verbose)
-	if err != nil {
-		return err
 	}
 
 	// Attempt to checkout revision.
@@ -70,15 +69,27 @@ func (i *Import) RestoreImport(gopath string) error {
 		return nil
 	}
 
-	// There was an error checking out revision: download changes and
-	// re-checkout revision
+	// Revision not found, checkout default branch (usually master).
+	_, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(i.Repo.VCS.TagSyncDefault),
+		fullpath, i.Verbose)
+	if err != nil {
+		return fmt.Errorf("Error checking out default branch (usually master) in repo %s, %s\n",
+			fullpath, err.Error())
+	}
+
+	// Download changes from remote repo.
 	err = i.Repo.VCS.Download(fullpath)
 	if err != nil {
 		return fmt.Errorf("Error downloading changes to %s, %s\n",
 			fullpath, err.Error())
 	}
-	_, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(cmdString), fullpath, i.Verbose)
-	return err
+
+	// Attempt to checkout rev again after downloading changes.
+	if _, err = runInDir(i.Repo.VCS.Cmd, strings.Fields(cmdString), fullpath, i.Verbose); err != nil {
+		return fmt.Errorf("Error checking out rev %s of repo %s, %s\n",
+			i.Rev, fullpath, err.Error())
+	}
+	return nil
 }
 
 // ImportsFromFile reads the given file and returns Import structs.
