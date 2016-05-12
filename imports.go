@@ -165,10 +165,16 @@ func ImportsFromPath(wd, gopath string, verbose bool) ([]*Import, error) {
 
 	// Sort the import set into a list of string paths
 	sortedImportPaths := []string{}
-	repoRoot := getImportPath(wd)
 	for path, _ := range deps {
 		// Do not vendor the repo that we are vendoring
-		if path == repoRoot {
+		proot, err := getRepoRoot(path)
+		if err != nil {
+			return nil, err
+		}
+
+		// If the root of the package in question is the working
+		// directory then we don't want to vendor it.
+		if strings.HasSuffix(wd, proot.Root) {
 			continue
 		}
 		sortedImportPaths = append(sortedImportPaths, path)
@@ -208,6 +214,7 @@ func ImportsFromPath(wd, gopath string, verbose bool) ([]*Import, error) {
 func getImportPath(fullpath string) string {
 	p, err := build.ImportDir(fullpath, 0)
 	if err != nil {
+		fmt.Println(err)
 		return ""
 	}
 	return p.ImportPath
