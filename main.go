@@ -130,7 +130,7 @@ func homebrew(wd, gopath string, verbose bool) {
 	for _, i := range imports {
 		fmt.Printf("  go_resource \"%s\" do\n", i.ImportPath)
 		fmt.Printf("    url \"%s.%s\",\n", i.Repo.Repo, i.Repo.VCS.Cmd)
-		fmt.Printf("    :revision => \"%s\"\n", i.Rev)
+		fmt.Printf("        :revision => \"%s\"\n", i.Rev)
 		fmt.Printf("  end\n")
 		fmt.Println()
 	}
