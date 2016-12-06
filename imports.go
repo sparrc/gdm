@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"go/build"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -92,6 +89,38 @@ func (i *Import) RestoreImport(gopath string) error {
 	return nil
 }
 
+// CheckImport checks if the import is at the proper revision.
+func (i *Import) CheckImport(gopath string) (bool, error) {
+	fullpath := filepath.Join(gopath, "src", i.ImportPath)
+	if _, err := os.Stat(fullpath); err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+		}
+		return false, err
+	}
+
+	// Retrieve the current revision.
+	var args []string
+	switch i.Repo.VCS.Cmd {
+	case "git":
+		args = []string{"rev-parse", "HEAD"}
+	case "hg":
+		args = []string{"log", "-l1", "--template", "{node}"}
+	default:
+		return false, nil
+	}
+
+	out, err := runInDir(i.Repo.VCS.Cmd, args, fullpath, i.Verbose)
+	if err != nil {
+		return false, err
+	}
+	rev := strings.TrimSpace(string(out))
+	if i.Verbose {
+		fmt.Printf("> Comparing repo %s revision %s to %s\n", fullpath, rev, i.Rev)
+	}
+	return rev == i.Rev, nil
+}
+
 // ImportsFromFile reads the given file and returns Import structs.
 func ImportsFromFile(filename string) []*Import {
 	content, err := ioutil.ReadFile(filename)
@@ -137,87 +166,52 @@ func ImportsFromFile(filename string) []*Import {
 // ImportsFromPath looks in the given working directory and finds all 3rd-party
 // imports, and returns Import structs
 func ImportsFromPath(wd, gopath string, verbose bool) ([]*Import, error) {
-	// Get a set of transitive dependencies (package import paths) for the
-	// specified package.
-	depsOutput, err := runInDir("go",
-		[]string{"list", "-f", `{{join .Deps "\n"}}`, "./..."},
-		wd, verbose)
+	// Parse the files within the working directory.
+	pkgs, err := ParseImports(filepath.Join(wd, "..."))
 	if err != nil {
 		return nil, err
 	}
-	// filter out standard library
-	deps := filterPackages(depsOutput, nil)
 
-	// List dependencies of test files, which are not included in the go list .Deps
-	// Also, ignore any dependencies that are already covered.
-	testDepsOutput, err := runInDir("go",
-		[]string{"list", "-f",
-			`{{join .TestImports "\n"}}{{"\n"}}{{join .XTestImports "\n"}}`, "./..."},
-		wd, verbose)
-	if err != nil {
-		return nil, err
-	}
-	// filter out stdlib and existing deps
-	testDeps := filterPackages(testDepsOutput, deps)
-	for dep := range testDeps {
-		deps[dep] = true
-	}
+	// Retrieve a mapping of every repository from the import paths.
+	deps := make(map[string]*Import)
+	for _, pkg := range pkgs {
+		// Ignore packages founds on the GOROOT.
+		if pkg.Goroot {
+			continue
+		}
 
-	// Sort the import set into a list of string paths
-	sortedImportPaths := []string{}
-	for path, _ := range deps {
-		// Do not vendor the repo that we are vendoring
-		proot, err := getRepoRoot(path)
+		proot, err := getRepoRoot(pkg.ImportPath)
 		if err != nil {
 			return nil, err
 		}
 
-		// If the root of the package in question is the working
-		// directory then we don't want to vendor it.
-		if strings.HasSuffix(wd, proot.Root) {
+		// Check if this repository has been referenced by another import.
+		if _, ok := deps[proot.Root]; ok {
 			continue
 		}
-		sortedImportPaths = append(sortedImportPaths, path)
+
+		// Create the Import object.
+		fullpath := filepath.Join(pkg.SrcRoot, proot.Root)
+		rev := getRevisionFromPath(fullpath, proot)
+		deps[proot.Root] = &Import{
+			Rev:        rev,
+			ImportPath: proot.Root,
+			Repo:       proot,
+		}
+	}
+
+	sortedImportPaths := make([]string, 0, len(deps))
+	for importpath := range deps {
+		sortedImportPaths = append(sortedImportPaths, importpath)
 	}
 	sort.Strings(sortedImportPaths)
 
-	// Iterate through imports, creating a list of Import structs
+	// Iterate through imports creating a slice of Imports.
 	result := []*Import{}
 	for _, importpath := range sortedImportPaths {
-		root, err := getRepoRoot(importpath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting VCS info for %s, skipping\n", importpath)
-			continue
-		}
-		_, ok := deps[root.Root]
-		if root.Root == importpath || !ok {
-			// Use the repo root as importpath if it's a usable go VCS repo
-			if _, err := getRepoRoot(root.Root); err == nil {
-				deps[root.Root] = true
-				importpath = root.Root
-			}
-			// If this is the repo root, or root is not already imported
-			fullpath := filepath.Join(gopath, "src", importpath)
-			rev := getRevisionFromPath(fullpath, root)
-			result = append(result, &Import{
-				Rev:        rev,
-				ImportPath: importpath,
-				Repo:       root,
-			})
-		}
+		result = append(result, deps[importpath])
 	}
 	return result, nil
-}
-
-// getImportPath takes a path like /home/csparr/go/src/github.com/sparrc/gdm
-// and returns the import path, ie, github.com/sparrc/gdm
-func getImportPath(fullpath string) string {
-	p, err := build.ImportDir(fullpath, 0)
-	if err != nil {
-		fmt.Println(err)
-		return ""
-	}
-	return p.ImportPath
 }
 
 // getRepoRoot takes an import path like github.com/sparrc/gdm
@@ -263,29 +257,6 @@ func getRevisionFromPath(fullpath string, root *vcs.RepoRoot) string {
 		os.Exit(1)
 	}
 	return strings.TrimSpace(string(output))
-}
-
-// filterPackages accepts the output of a go list comment (one package per line)
-// and returns a set of package import paths, excluding standard library.
-// Additionally, any packages present in the "exclude" set will be excluded.
-func filterPackages(output []byte, exclude map[string]bool) map[string]bool {
-	var scanner = bufio.NewScanner(bytes.NewReader(output))
-	var deps = map[string]bool{}
-	for scanner.Scan() {
-		var (
-			pkg    = scanner.Text()
-			slash  = strings.Index(pkg, "/")
-			stdLib = slash == -1 || strings.Index(pkg[:slash], ".") == -1
-		)
-		if stdLib {
-			continue
-		}
-		if _, ok := exclude[pkg]; ok {
-			continue
-		}
-		deps[pkg] = true
-	}
-	return deps
 }
 
 // runInDir runs the given command (name) with args, in the given directory.

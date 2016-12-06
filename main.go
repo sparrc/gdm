@@ -35,6 +35,7 @@ The commands are:
     restore   Check out revisions defined in Godeps file to $GOPATH.
     save      Saves currently checked-out dependencies from $GOPATH to Godeps file.
     brew      Outputs homebrew go_resource entries to stdout.
+    vendor    Vendors the dependencies in the vendor directory.
     version   Prints the version.
 `
 
@@ -73,6 +74,9 @@ func main() {
 	case "brew", "homebrew":
 		splash(wd, gopath)
 		homebrew(wd, gopath, verbose)
+	case "vendor":
+		splash(wd, gopath)
+		vendor(wd, gopath, verbose)
 	case "version":
 		fmt.Printf("gdm - version %s\n", Version)
 	default:
