@@ -98,7 +98,8 @@ func usageExit() {
 func getGoPath(wd string) (string, error) {
 	gopath := os.Getenv("GOPATH")
 	if gopath == "" {
-		return "", fmt.Errorf("GOPATH must be set to use gdm")
+		gopath = filepath.Join(os.Getenv("HOME"), "go")
+		fmt.Printf("GOPATH not found, assuming %s\n", gopath)
 	}
 
 	// Split out multiple GOPATHs if necessary
