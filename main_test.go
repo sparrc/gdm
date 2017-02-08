@@ -49,3 +49,11 @@ func TestGetGoPath(t *testing.T) {
 		t.Errorf("Expected getGoPath failure, got %s", err.Error())
 	}
 }
+
+func ExampleSplashScreen() {
+	splash("/home/go", "/usr/local/go")
+	// Output: ======= Go Dependency Manager =======
+	// = working dir: /home/go
+	// = GOPATH:      /usr/local/go
+	// =====================================
+}

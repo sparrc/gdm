@@ -1,23 +1,15 @@
 package main
 
 import (
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"golang.org/x/tools/go/vcs"
 )
-
-func TestSetRootImport(t *testing.T) {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err.Error())
-	}
-
-	s := "github.com/sparrc/gdm"
-	rootImport := getImportPath(wd)
-	if rootImport != s {
-		t.Errorf("Expected rootImport %s, got %s", s, rootImport)
-	}
-}
 
 func TestGetRepoRoot(t *testing.T) {
 	s := "github.com/sparrc/gdm"
@@ -75,5 +67,49 @@ func TestImportsFromFile(t *testing.T) {
 		if i.Rev != test.rev {
 			t.Errorf("Expected %s, actual %s", test.rev, i.Rev)
 		}
+	}
+}
+
+func TestImport_RestoreImport(t *testing.T) {
+	// Restore gdm import to specific known revision.
+	I := Import{
+		ImportPath: "github.com/sparrc/gdm",
+		Rev:        "2b7833e0c093654450c829858d0df5c53c575b07",
+		Repo: &vcs.RepoRoot{
+			VCS:  vcs.ByCmd("git"),
+			Repo: "git://github.com/sparrc/gdm",
+			Root: "github.com/sparrc/gdm",
+		},
+	}
+
+	tmpdir, err := ioutil.TempDir(os.TempDir(), "gdm-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpdir)
+
+	srcdir := filepath.Join(tmpdir, "src", I.ImportPath)
+	if err := I.RestoreImport(tmpdir); err != nil {
+		t.Fatal(err)
+	}
+	if rev := getRevisionFromPath(srcdir, I.Repo); rev != I.Rev {
+		t.Fatalf("unable to restore import to revision %s", I.Rev)
+	}
+
+	// Restore to the previous revision to test restoring an import on disk.
+	cmd := exec.Command("git", "rev-parse", "HEAD~1")
+	cmd.Dir = srcdir
+
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	I.Rev = strings.TrimSpace(string(output))
+	if err := I.RestoreImport(tmpdir); err != nil {
+		t.Fatal(err)
+	}
+	if rev := getRevisionFromPath(srcdir, I.Repo); rev != I.Rev {
+		t.Fatalf("unable to restore import to revision %s", I.Rev)
 	}
 }
