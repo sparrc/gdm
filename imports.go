@@ -32,13 +32,13 @@ type Import struct {
 
 // RestoreImport takes the import and restores it at the given GOPATH.
 // There are four steps to this:
-//   1. cd $GOPATH/src/<import_path>
+//   1. cd $CHECKOUT_PATH/<import_path>
 //   2. Checkout default branch (ie, git checkout master)
 //   3. Download changes (ie, git pull --ff-only)
 //   4. Checkout revision (ie, git checkout 759e96ebaffb01c3cba0e8b129ef29f56507b323)
-func (i *Import) RestoreImport(gopath string) error {
+func (i *Import) RestoreImport(path string) error {
 	vcs.ShowCmd = i.Verbose
-	fullpath := filepath.Join(gopath, "src", i.ImportPath)
+	fullpath := filepath.Join(path, i.ImportPath)
 	fmt.Printf("> Restoring %s to %s\n", fullpath, i.Rev)
 
 	// If the repo doesn't exist already, create it
@@ -49,7 +49,7 @@ func (i *Import) RestoreImport(gopath string) error {
 		}
 
 		// Create parent directory
-		rootpath := filepath.Join(gopath, "src", i.Repo.Root)
+		rootpath := filepath.Join(path, i.Repo.Root)
 		if err = os.MkdirAll(rootpath, os.ModePerm); err != nil {
 			return fmt.Errorf("Could not create parent directory %s for repo %s\n",
 				rootpath, fullpath)

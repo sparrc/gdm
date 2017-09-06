@@ -32,6 +32,7 @@ Usage:
 
 The commands are:
 
+    vendor    Check out revisions defined in Godeps file in ./vendor directory.
     restore   Check out revisions defined in Godeps file to $GOPATH.
     save      Saves currently checked-out dependencies from $GOPATH to Godeps file.
     brew      Outputs homebrew go_resource entries to stdout.
@@ -65,13 +66,17 @@ func main() {
 
 	switch args[0] {
 	case "save", "bootstrap":
-		splash(wd, gopath)
+		splash(wd, "NA", gopath)
 		save(wd, gopath, verbose)
+	case "vendor":
+		path := filepath.Join(wd, "vendor")
+		splash(wd, path, gopath)
+		restore(wd, path, verbose)
 	case "restore", "get", "sync", "checkout":
-		splash(wd, gopath)
-		restore(wd, gopath, verbose)
+		path := filepath.Join(gopath, "src")
+		splash(wd, path, gopath)
+		restore(wd, path, verbose)
 	case "brew", "homebrew":
-		splash(wd, gopath)
 		homebrew(wd, gopath, verbose)
 	case "version":
 		fmt.Printf("gdm - version %s\n", Version)
@@ -80,10 +85,11 @@ func main() {
 	}
 }
 
-func splash(wd, gopath string) {
+func splash(wd, path, gopath string) {
 	fmt.Println("======= Go Dependency Manager =======")
-	fmt.Println("= working dir:", wd)
-	fmt.Println("= GOPATH:     ", gopath)
+	fmt.Println("= working dir: ", wd)
+	fmt.Println("= checkout dir:", path)
+	fmt.Println("= GOPATH:      ", gopath)
 	fmt.Println("=====================================")
 }
 
@@ -121,12 +127,7 @@ func getGoPath(wd string) (string, error) {
 }
 
 func homebrew(wd, gopath string, verbose bool) {
-	imports, err := ImportsFromPath(wd, gopath, verbose)
-	if err != nil {
-		fmt.Printf("Fatal error: %s", err)
-		os.Exit(1)
-	}
-
+	imports := ImportsFromFile(filepath.Join(wd, DepsFile))
 	fmt.Println()
 	for _, i := range imports {
 		fmt.Printf("  go_resource \"%s\" do\n", i.ImportPath)
@@ -162,16 +163,16 @@ func save(wd, gopath string, verbose bool) {
 	w.Flush()
 }
 
-func restore(wd, gopath string, verbose bool) {
+func restore(wd, path string, verbose bool) {
 	imports := ImportsFromFile(filepath.Join(wd, DepsFile))
 	if Parallel {
-		restoreParallel(imports, gopath, verbose)
+		restoreParallel(imports, path, verbose)
 	} else {
-		restoreSerial(imports, gopath, verbose)
+		restoreSerial(imports, path, verbose)
 	}
 }
 
-func restoreParallel(imports []*Import, gopath string, verbose bool) {
+func restoreParallel(imports []*Import, path string, verbose bool) {
 	var wg sync.WaitGroup
 	wg.Add(len(imports))
 	errC := make(chan error, len(imports))
@@ -179,7 +180,7 @@ func restoreParallel(imports []*Import, gopath string, verbose bool) {
 		i.Verbose = verbose
 		go func(I *Import) {
 			defer wg.Done()
-			err := I.RestoreImport(gopath)
+			err := I.RestoreImport(path)
 			if err != nil {
 				errC <- err
 			}
@@ -199,9 +200,9 @@ func restoreParallel(imports []*Import, gopath string, verbose bool) {
 	}
 }
 
-func restoreSerial(imports []*Import, gopath string, verbose bool) {
+func restoreSerial(imports []*Import, path string, verbose bool) {
 	for _, i := range imports {
 		i.Verbose = verbose
-		i.RestoreImport(gopath)
+		i.RestoreImport(path)
 	}
 }
