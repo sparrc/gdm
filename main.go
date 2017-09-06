@@ -33,7 +33,6 @@ Usage:
 The commands are:
 
     vendor    Check out revisions defined in Godeps file in ./vendor directory.
-    restore   Check out revisions defined in Godeps file to $GOPATH.
     save      Saves currently checked-out dependencies from $GOPATH to Godeps file.
     brew      Outputs homebrew go_resource entries to stdout.
     version   Prints the version.
@@ -73,6 +72,7 @@ func main() {
 		splash(wd, path, gopath)
 		restore(wd, path, verbose)
 	case "restore", "get", "sync", "checkout":
+		fmt.Println("WARNING: 'gdm restore' is being deprecated in favor of 'gdm vendor'")
 		path := filepath.Join(gopath, "src")
 		splash(wd, path, gopath)
 		restore(wd, path, verbose)
