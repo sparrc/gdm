@@ -1,9 +1,11 @@
 # Go Dependency Manager (gdm) [![Circle CI](https://circleci.com/gh/sparrc/gdm.svg?style=svg)](https://circleci.com/gh/sparrc/gdm)
 
-gdm aims to do as little as possible. It does not copy
-dependencies in-repo and does not require that people use `gdm` to build
-your project. In this way, people can still simply `go get`
-your project and build.
+gdm aims to do as little as possible. It will checkout dependencies to the
+local vendor directory and does not require that people use `gdm` to build
+your project. In this way, people can still simply `go get` your project
+and build.
+
+We would recommend that you add `vendor` to your .gitignore file when using gdm.
 
 This tool assumes you are working in a standard Go workspace, as described in
 http://golang.org/doc/code.html.
@@ -75,7 +77,7 @@ Building a project managed by gdm looks like this:
 1. Run `go get github.com/foo/bar`
 1. Run `cd $GOPATH/src/github.com/foo/bar`
 1. Run `gdm vendor`
-1. Build: `go install` or `go install ./...`
+1. Build: `go install ./...`
 
 ## Homebrew
 
@@ -105,9 +107,12 @@ $ gdm brew
 
 ### Restore
 
-The `gdm restore` command is deprecated as of the release of Go 1.9.
-Going forward dependencies should be vendored using the `gdm vendor` command
-and the `./vendor` directory.
+The `gdm restore` command works similar to the `gdm vendor` command, but instead
+of checking out the dependencies in the ./vendor directory, it will checkout the
+dependencies in your current GOPATH. This will modify repos in your GOPATH.
+
+This can be useful for debugging or if you are using a Go version earlier than
+1.9.
 
 #### Acknowledgements
 
